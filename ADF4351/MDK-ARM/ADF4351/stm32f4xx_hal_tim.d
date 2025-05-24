@@ -22,6 +22,9 @@ adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_e
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h
+adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h
+adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
 adf4351\stm32f4xx_hal_tim.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h

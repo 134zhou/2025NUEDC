@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
+#include "dma.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -31,7 +33,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define ADC_Samples 16
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -51,6 +53,7 @@ uint16_t point;
 uint16_t cnt = 0;
 float fre_begin=80;
 float fre_end=81;
+uint16_t adc_buffer[ADC_Samples];
 
 int fputc(int ch, FILE *f)
 {
@@ -78,11 +81,27 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		{
 			cnt = cnt+1;
 			freq = fre_begin + 0.01*cnt;
-			printf("%f\n",freq);
 			ADF4351_Freq_Setting(freq);
+			HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, ADC_Samples);
 		}
 	}
-	
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+	if(hadc == &hadc1)
+	{
+		HAL_ADC_Stop_DMA(&hadc1);
+		uint32_t sum = 0;
+		float ad8307_v = 0;
+		for(int i =0; i<ADC_Samples; i++)
+		{
+			sum = sum +adc_buffer[i];
+		}
+		ad8307_v = sum/ADC_Samples*3.3/4096;
+		printf("%f\n", ad8307_v);
+		printf("%d\n", cnt);
+	}
 }
 /* USER CODE END PV */
 
@@ -125,9 +144,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_TIM3_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 	Freq_Sweep(fre_begin, fre_end);
 	ADF4351_Init();

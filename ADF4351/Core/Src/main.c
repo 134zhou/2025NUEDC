@@ -33,7 +33,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define ADC_Samples 16
+#define ADC_Samples 1
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -49,18 +49,150 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+//发送指令
+uint8_t data[] = {
+0x61, 0x64, 0x64, 0x74, 0x20, 0x73, 0x30, 0x2E, 0x69, 0x64, 0x2C, 0x30, 0x2C, 0x32, 0x30,0x30,
+    0xFF, 0xFF, 0xFF
+    };
+
+
 uint16_t point;
 uint16_t cnt = 0;
 float fre_begin=80;
-float fre_end=81;
-uint16_t adc_buffer[ADC_Samples];
+float fre_end=100;
 
+float point_fre = 0;//点频值
+
+uint16_t adc_buffer[ADC_Samples];
+uint8_t rx_data;
+uint8_t rx_buffer[8];//输入缓存
+uint8_t rx_cnt;//输入计数
+
+uint8_t sign = 0;//变频与采样选择
+uint8_t mode = 0;//点频与扫频选择
+
+uint8_t state_entered = 0;  // 进入标志，表示是否刚进入状态
+uint8_t state_jump = 0;//状态跳转值
+		
+float buffer_vol[5];
+float peak_vol = 0;
+uint8_t vol_cnt=0;
+
+typedef enum {
+    STATE_IDLE,
+    STATE_POINT,
+    STATE_SCAN,
+		STATE_PRINT
+} State;
+
+State current_state = STATE_IDLE;
+State next_state = STATE_IDLE;
+
+
+void StateMachine_Update(void)
+{
+    // 状态跳转逻辑
+    switch (current_state)
+    {
+        case STATE_IDLE:
+            if (state_jump == 1)
+                next_state = STATE_POINT;
+						else if(state_jump == 2)
+								next_state = STATE_SCAN;
+						else if(state_jump == 3)
+								next_state = STATE_PRINT;
+            else
+                next_state = STATE_IDLE;
+            break;
+
+        case STATE_POINT:
+            if (state_jump == 0)
+                next_state = STATE_IDLE;
+            else
+                next_state = STATE_POINT;
+            break;
+
+        case STATE_SCAN:
+            if (state_jump == 0)
+                next_state = STATE_IDLE;
+            else
+                next_state = STATE_SCAN;
+            break;
+        case STATE_PRINT:
+            if (state_jump == 0)
+                next_state = STATE_IDLE;
+            else
+                next_state = STATE_PRINT;
+            break;
+    }
+
+    // 如果状态切换，清除进入标志
+    if (next_state != current_state)
+        state_entered = 0;
+		current_state = next_state;
+
+    // 状态执行
+    switch (current_state)
+    {
+        case STATE_IDLE:
+            if (!state_entered)
+            {
+                state_entered = 1;
+            }
+            break;
+
+        case STATE_POINT:
+            if (!state_entered)
+            {
+                state_entered = 1;
+                // 进入POINT状态时只执行一次的动作
+								ADF4351_Freq_Setting(point_fre);
+            }
+            // POINT状态中需要反复执行的动作也写这里
+            break;
+
+        case STATE_SCAN:
+            if (!state_entered)
+            {
+                state_entered = 1;
+                // 进入SCAN状态时只执行一次的动作
+								HAL_TIM_Base_Start_IT(&htim3);
+            }
+            // SCAN状态中循环执行的动作
+            break;
+				case STATE_PRINT:
+						if(!state_entered)
+						{
+                state_entered = 1;
+                // 进入SCAN状态时只执行一次的动作
+								HAL_UART_Transmit(&huart1, data, sizeof(data), 100);
+								HAL_Delay(100);
+								HAL_TIM_Base_Start_IT(&htim3);
+            }
+    }
+}
+
+//串口解码
+void Uart_Decode(uint8_t rx_buffer[])
+{
+	if(rx_buffer[0]=='F'&&rx_buffer[1]=='F')//状态机跳转指令
+	{
+		state_jump = rx_buffer[2]-48;
+	}
+	else if(rx_buffer[0]=='F'&&rx_buffer[1]=='D')//数据
+	{
+		point_fre = (1000*(rx_buffer[2]-48)+100*(rx_buffer[3]-48)+10*(rx_buffer[3]-48)+(rx_buffer[4]-48))/100.0;
+		printf("%f",point_fre);
+	}
+}
+
+//串口发送重定义
 int fputc(int ch, FILE *f)
 {
   HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xffff);
   return ch;
 }
-
+//扫频范围设置
 void Freq_Sweep(float fre_begin, float fre_end)
 {
 	uint16_t fre_scale;
@@ -73,16 +205,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	float freq = 0;
 	if(htim == &htim3)
 	{
-		if(cnt == point)
+		if(!sign)//为0时设置频率
 		{
-			HAL_TIM_Base_Stop_IT(&htim3);
-		}			
-		else
-		{
-			cnt = cnt+1;
+			sign = !sign;
 			freq = fre_begin + 0.01*cnt;
 			ADF4351_Freq_Setting(freq);
-			HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, ADC_Samples);
+		}
+		else//为1时进行采样，并且更新cnt
+		{
+			sign = !sign;
+			if(cnt == point)
+			{
+				HAL_TIM_Base_Stop_IT(&htim3);
+				cnt = 0;
+			}			
+			else
+			{
+				cnt = cnt+1;
+				HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, ADC_Samples);
+			}
 		}
 	}
 }
@@ -99,10 +240,47 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 			sum = sum +adc_buffer[i];
 		}
 		ad8307_v = sum/ADC_Samples*3.3/4096;
-		printf("%f\n", ad8307_v);
-		printf("%d\n", cnt);
+		//每5个数据找出最大值
+	  buffer_vol[vol_cnt] = ad8307_v;
+		vol_cnt++;
+		if(vol_cnt >= 5)
+		{
+			float max_val = buffer_vol[0];
+        for (int i = 1; i < 5; i++)
+        {
+            if (buffer_vol[i] > max_val)
+                max_val = buffer_vol[i];
+        }
+				peak_vol = max_val;
+				vol_cnt = 0;
+				uint8_t result = (uint8_t)(peak_vol / 3.3f * 255.0f);
+				HAL_UART_Transmit(&huart1, &result, 1, 100);
+		}
+
 	}
 }
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart == &huart1)
+	{
+		if(rx_data == '\n')//指令结束
+		{
+			rx_cnt = 0;
+			Uart_Decode(rx_buffer);
+			state_entered = 0;
+		}
+		else //接收
+		{
+			rx_buffer[rx_cnt] = rx_data;
+			rx_cnt++;
+		}
+		HAL_UART_Receive_IT(&huart1, &rx_data, 1);
+	}
+}
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -152,9 +330,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	Freq_Sweep(fre_begin, fre_end);
 	ADF4351_Init();
-	HAL_Delay(10);
-	HAL_TIM_Base_Start_IT(&htim3);
-//	ADF4351_Freq_Setting(80.3);
+	HAL_UART_Receive_IT(&huart1, &rx_data, 1);
+
 
   /* USER CODE END 2 */
 
@@ -165,8 +342,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-//			ADF4351_Freq_Setting(freq);
-//		HAL_Delay(500);
+		HAL_Delay(100);
+		StateMachine_Update();
   }
   /* USER CODE END 3 */
 }

@@ -49,17 +49,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-//发送指令
-uint8_t data[] = {
-0x61, 0x64, 0x64, 0x74, 0x20, 0x73, 0x30, 0x2E, 0x69, 0x64, 0x2C, 0x30, 0x2C, 0x32, 0x30,0x30,
-    0xFF, 0xFF, 0xFF
-    };
-
 
 uint16_t point;
 uint16_t cnt = 0;
-float fre_begin=80;
-float fre_end=100;
+float fre_begin=90;
+float fre_end=110;
 
 float point_fre = 0;//点频值
 
@@ -165,8 +159,6 @@ void StateMachine_Update(void)
 						{
                 state_entered = 1;
                 // 进入SCAN状态时只执行一次的动作
-								HAL_UART_Transmit(&huart1, data, sizeof(data), 100);
-								HAL_Delay(100);
 								HAL_TIM_Base_Start_IT(&htim3);
             }
     }
@@ -182,7 +174,7 @@ void Uart_Decode(uint8_t rx_buffer[])
 	else if(rx_buffer[0]=='F'&&rx_buffer[1]=='D')//数据
 	{
 		point_fre = (1000*(rx_buffer[2]-48)+100*(rx_buffer[3]-48)+10*(rx_buffer[3]-48)+(rx_buffer[4]-48))/100.0;
-		printf("%f",point_fre);
+
 	}
 }
 
@@ -239,7 +231,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 		{
 			sum = sum +adc_buffer[i];
 		}
-		ad8307_v = sum/ADC_Samples*3.3/4096;
+		ad8307_v = sum/ADC_Samples*3.3/4096-1.09;
+//		printf("%f\n", ad8307_v);
 		//每5个数据找出最大值
 	  buffer_vol[vol_cnt] = ad8307_v;
 		vol_cnt++;
@@ -253,10 +246,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
         }
 				peak_vol = max_val;
 				vol_cnt = 0;
-				uint8_t result = (uint8_t)(peak_vol / 3.3f * 255.0f);
-				HAL_UART_Transmit(&huart1, &result, 1, 100);
+				uint8_t result = (uint8_t)(peak_vol * 10006);
+				printf("add s0.id,0,%d\xff\xff\xff", result);
 		}
-
 	}
 }
 

@@ -72,6 +72,9 @@ float buffer_vol[5];
 float peak_vol = 0;
 uint8_t vol_cnt=0;
 
+float max_vol=0;
+float max_freq;
+
 typedef enum {
     STATE_IDLE,
     STATE_POINT,
@@ -159,6 +162,7 @@ void StateMachine_Update(void)
 						{
                 state_entered = 1;
                 // 进入SCAN状态时只执行一次的动作
+								max_vol = 0;
 								HAL_TIM_Base_Start_IT(&htim3);
             }
     }
@@ -227,26 +231,36 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 		HAL_ADC_Stop_DMA(&hadc1);
 		uint32_t sum = 0;
 		float ad8307_v = 0;
+		float max_ad8307_dbm = 0;
 		for(int i =0; i<ADC_Samples; i++)
 		{
 			sum = sum +adc_buffer[i];
 		}
-		ad8307_v = sum/ADC_Samples*3.3/4096-1.09;
+		ad8307_v = (sum/ADC_Samples*3.3/4096);
+		if(ad8307_v>max_vol)
+		{
+			max_vol =ad8307_v;
+			max_ad8307_dbm = max_vol*80.27f-153.32f;
+			max_freq = fre_begin + 0.01*cnt - 10.7;
+			printf("t3.txt=\"%fMHz\"\xff\xff\xff", max_freq);
+			printf("t5.txt=\"%fdBm\"\xff\xff\xff", max_ad8307_dbm);
+		}
 //		printf("%f\n", ad8307_v);
 		//每5个数据找出最大值
 	  buffer_vol[vol_cnt] = ad8307_v;
 		vol_cnt++;
 		if(vol_cnt >= 5)
 		{
-			float max_val = buffer_vol[0];
-        for (int i = 1; i < 5; i++)
+			float max_val = 0;
+        for (int i = 0; i < 5; i++)
         {
             if (buffer_vol[i] > max_val)
                 max_val = buffer_vol[i];
         }
 				peak_vol = max_val;
 				vol_cnt = 0;
-				uint8_t result = (uint8_t)(peak_vol * 10006);
+				uint8_t result = (uint8_t)((peak_vol-1)*1000);
+//				printf("%f\n",peak_vol);
 				printf("add s0.id,0,%d\xff\xff\xff", result);
 		}
 	}

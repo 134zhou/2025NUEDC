@@ -5,6 +5,14 @@
 #include <KalmanFilter.h>
 #include <PID.h>
 
+// SDA = 21;
+// SCL = 22;
+
+#define wheel_1_P 12
+#define wheel_1_N 13
+#define wheel_2_P 2
+#define wheel_2_N 4
+
 Adafruit_MPU6050 mpu;
 float ax, ay, az, gx, gy, gz;
 KalmanFilter kfPitch, kfRoll;
@@ -15,14 +23,19 @@ float kalPitch;
 float kalRoll;
 
 hw_timer_t *timer = NULL;
+PID_Param pid;
 
 void Interrupt_1ms(void)
 {
   flag = true;
 }
 
+void Init_motor_control();
+void motor(int wheel_1_value,int wheel_2_value);
+void angle_update();
 
-void setup(void) {
+void setup(void)
+{
   Serial.begin(115200);
   while (!Serial)
   delay(10); // will pause Zero, Leonardo, etc until serial console opens
@@ -32,7 +45,8 @@ void setup(void) {
   if (!mpu.begin()) 
   {
     Serial.println("Failed to find MPU6050 chip");
-    while (1) {
+    while(1)
+    {
       delay(10);
     }
   }
@@ -51,39 +65,100 @@ void setup(void) {
   timerAttachInterrupt(timer, &Interrupt_1ms, true);
   timerAlarmWrite(timer, 1000, true);
   timerAlarmEnable(timer);
+
+  Init_motor_control();
+  PID_Init(&pid, 0.5, 0.005, 0, 255, -255);
 }
 
 void loop() 
 {
   if (flag)
   {
-    n++;
-    flag = false;
-    sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
-    float dt = 0.01;
-
-    ax = a.acceleration.x;
-    ay = a.acceleration.y;
-    az = a.acceleration.z;
-    gx = g.gyro.x;
-    gy = g.gyro.y;
-    gz = g.gyro.z;
-
-    // 加速度角度估算
-    float accPitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
-    float accRoll  = atan2(ay, az) * 180.0 / PI;
-
-
-    float gyroX = gx* 180.0 / PI;
-    float gyroY = gy* 180.0 / PI;
-    float gyroZ = gz* 180.0 / PI;
-
-    kalPitch = updateKalman(kfPitch, accPitch, gyroY, dt);
-    kalRoll  = updateKalman(kfRoll, accRoll,  gyroX, dt);
-
-    yaw += gyroZ * dt;   
+    angle_update();
+    PID_Calculate(&pid,kalPitch);
+    Serial.println(pid.output);
+    motor(pid.output,pid.output);
   }
+
+}
+
+void Init_motor_control()
+{
+  pinMode(wheel_1_P,OUTPUT);
+  pinMode(wheel_1_N,OUTPUT);
+  ledcSetup(0,20000,9);
+  ledcAttachPin(wheel_1_P,0);
+  ledcWrite(0,0);
+
+  ledcSetup(2,20000,9);
+  ledcAttachPin(wheel_1_N,2);
+  ledcWrite(2,0);
+
+  pinMode(wheel_2_P,OUTPUT);
+  pinMode(wheel_2_N,OUTPUT);
+  ledcSetup(4,20000,9);
+  ledcAttachPin(wheel_2_P,4);
+  ledcWrite(4,0);
+
+  ledcSetup(6,20000,9);
+  ledcAttachPin(wheel_2_N,6);
+  ledcWrite(6,0);
+}
+
+//输入值-256-256，正的正转，负的反转
+void motor(int wheel_1_value,int wheel_2_value)
+{
+  if (wheel_1_value >= 0)
+  {
+    ledcWrite(0,wheel_1_value+256);
+    ledcWrite(2,0);
+  }
+  else
+  {
+    ledcWrite(0,0);
+    ledcWrite(2,256-wheel_1_value);
+  }
+
+  if (wheel_2_value >= 0)
+  {
+    ledcWrite(4,wheel_2_value+256);
+    ledcWrite(6,0);
+  }
+  else
+  {
+    ledcWrite(4,0);
+    ledcWrite(6,256-wheel_2_value);
+  }
+}
+
+void angle_update()
+{
+  n++;
+  flag = false;
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  float dt = 0.01;
+
+  ax = a.acceleration.x;
+  ay = a.acceleration.y;
+  az = a.acceleration.z;
+  gx = g.gyro.x;
+  gy = g.gyro.y;
+  gz = g.gyro.z;
+
+  // 加速度角度估算
+  float accPitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+  float accRoll  = atan2(ay, az) * 180.0 / PI;
+
+
+  float gyroX = gx* 180.0 / PI;
+  float gyroY = gy* 180.0 / PI;
+  float gyroZ = gz* 180.0 / PI;
+
+  kalPitch = updateKalman(kfPitch, accPitch, gyroY, dt);
+  kalRoll  = updateKalman(kfRoll, accRoll,  gyroX, dt);
+
+  yaw += gyroZ * dt;
   if (n==100)
   {
     Serial.print("Pitch: ");
@@ -94,6 +169,4 @@ void loop()
     Serial.println(yaw, 2);
     n = 0;
   }
-  
-
 }

@@ -86,23 +86,23 @@ void Init_motor_control()
 {
   pinMode(wheel_1_P,OUTPUT);
   pinMode(wheel_1_N,OUTPUT);
-  ledcSetup(0,20000,9);
-  ledcAttachPin(wheel_1_P,0);
-  ledcWrite(0,0);
+  // ledcSetup(0,20000,9);
+  // ledcAttachPin(wheel_1_P,0);
+  // ledcWrite(0,0);
 
-  ledcSetup(2,20000,9);
-  ledcAttachPin(wheel_1_N,2);
-  ledcWrite(2,0);
+  // ledcSetup(2,20000,9);
+  // ledcAttachPin(wheel_1_N,2);
+  // ledcWrite(2,0);
 
   pinMode(wheel_2_P,OUTPUT);
   pinMode(wheel_2_N,OUTPUT);
-  ledcSetup(4,20000,9);
-  ledcAttachPin(wheel_2_P,4);
-  ledcWrite(4,0);
+  // ledcSetup(4,20000,9);
+  // ledcAttachPin(wheel_2_P,4);
+  // ledcWrite(4,0);
 
-  ledcSetup(6,20000,9);
-  ledcAttachPin(wheel_2_N,6);
-  ledcWrite(6,0);
+  // ledcSetup(6,20000,9);
+  // ledcAttachPin(wheel_2_N,6);
+  // ledcWrite(6,0);
 }
 
 //输入值-256-256，正的正转，负的反转
@@ -110,24 +110,32 @@ void motor(int wheel_1_value,int wheel_2_value)
 {
   if (wheel_1_value >= 0)
   {
-    ledcWrite(0,wheel_1_value+256);
-    ledcWrite(2,0);
+    // ledcWrite(0,wheel_1_value+256);
+    // ledcWrite(2,0);
+    analogWrite(wheel_1_P,wheel_1_value);
+    analogWrite(wheel_1_N,0);
   }
   else
   {
-    ledcWrite(0,0);
-    ledcWrite(2,256-wheel_1_value);
+    // ledcWrite(0,0);
+    // ledcWrite(2,256-wheel_1_value);
+    analogWrite(wheel_1_P,0);
+    analogWrite(wheel_1_N,-wheel_1_value);
   }
 
   if (wheel_2_value >= 0)
   {
-    ledcWrite(4,wheel_2_value+256);
-    ledcWrite(6,0);
+    // ledcWrite(4,wheel_2_value+256);
+    // ledcWrite(6,0);
+    analogWrite(wheel_2_P,wheel_2_value);
+    analogWrite(wheel_2_N,0);
   }
   else
   {
-    ledcWrite(4,0);
-    ledcWrite(6,256-wheel_2_value);
+    // ledcWrite(4,0);
+    // ledcWrite(6,256-wheel_2_value);
+    analogWrite(wheel_2_P,0);
+    analogWrite(wheel_2_N,-wheel_2_value);
   }
 }
 
